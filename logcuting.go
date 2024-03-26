@@ -10,7 +10,7 @@ type Config struct {
 	Path       string        //日志文件目录
 	Name       string        //日志文件名称
 	TimeFormat string        //日志文件名称的时间格式
-	Time       time.Duration //日志切割时间间隔，最新切割时间间隔分钟
+	Time       time.Duration //日志切割时间间隔
 }
 
 type Logcuting struct {
