@@ -22,6 +22,11 @@ type Logcuting struct {
 // 创建Logcuting实例
 func NewLogcuting(config *Config) *Logcuting {
 	l := new(Logcuting)
+	l.Config = *config
+	// l.Config.Path = config.Name
+	// l.Config.Name=config.Name
+	// l.Config.TimeFormat=config.TimeFormat
+	// l.Config.Time=config.Time
 	var err error
 	l.file, err = os.OpenFile(l.Path+time.Now().Format(l.TimeFormat)+"_"+l.Name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
