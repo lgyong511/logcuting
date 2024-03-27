@@ -10,14 +10,17 @@ import (
 type Config struct {
 	Name string        //日志输出目录字符串，例如："./log/demo-%Y%m%d%H%M%S.log"
 	Time time.Duration //日志切割时间间隔
+	Size int64         //日志文件切割大小，单位MB
 }
 
+// 日志切割信息
 type Logcuting struct {
 	config    *Config
 	file      *os.File  //文件实例
 	oldTime   time.Time //上次日志切割的时间
 	oldLayout string    //传统时间格式，%Y-%m-%d %H:%M:%S，从配置信息中截取
 	newLayout string    //go语言时间格式，"2006-01-02 15:04:05"，根据oldLayout转换
+	name      string    //日志输出文件字符串，"./log/demo-20240327135202.log"
 
 }
 
@@ -27,9 +30,10 @@ func NewLogcuting(config *Config) *Logcuting {
 	l.config = config
 	l.setOldLayout()
 	l.setNewLayout()
+	l.name = l.getName()
 
 	var err error
-	l.file, err = os.OpenFile(l.getName(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -39,7 +43,12 @@ func NewLogcuting(config *Config) *Logcuting {
 
 // 实现io.Writer接口
 func (l *Logcuting) Write(p []byte) (n int, err error) {
-	l.cutingByTime()
+	//如果config.Size大于0，就按日志文件大小切割，否则就按时间切割
+	if l.config.Size > 0 {
+		l.cutingBySize()
+	} else {
+		l.cutingByTime()
+	}
 	return l.file.Write(p)
 }
 
@@ -58,7 +67,8 @@ func (l *Logcuting) cutingByTime() {
 		// 判断现在时间的时间戳是否大于等于加一天后的0时0分0秒的时间戳
 		if time.Now().Unix() >= time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix() {
 			l.file.Close()
-			l.file, _ = os.OpenFile(l.getName(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			l.name = l.getName()
+			l.file, _ = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		}
 
 	} else { //按config.Time间隔切割
@@ -68,10 +78,22 @@ func (l *Logcuting) cutingByTime() {
 		// 判断上次日志切割的时间是否大于等于日志切割时间间隔
 		if time.Since(l.oldTime) >= l.config.Time {
 			l.file.Close()
-			l.file, _ = os.OpenFile(l.getName(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			l.name = l.getName()
+			l.file, _ = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 			l.oldTime = time.Now()
 		}
 
+	}
+}
+
+// 按日志文件大小切割日志
+func (l *Logcuting) cutingBySize() {
+	size := l.getSize()
+	if size >= l.config.Size {
+		l.file.Close()
+		l.name = l.getName()
+		l.file, _ = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		l.oldTime = time.Now()
 	}
 }
 
@@ -109,4 +131,10 @@ func (l *Logcuting) getName() string {
 
 	time := time.Now().Format(l.newLayout)
 	return strings.Replace(l.config.Name, l.oldLayout, time, -1)
+}
+
+// 获取日志文件的大小
+func (l *Logcuting) getSize() int64 {
+	fileInfo, _ := os.Stat(l.name)
+	return fileInfo.Size()
 }
