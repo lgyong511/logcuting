@@ -25,7 +25,7 @@ type Logcuting struct {
 }
 
 // 创建Logcuting实例
-func NewLogcuting(config *Config) *Logcuting {
+func NewLogcuting(config *Config) (*Logcuting, error) {
 	l := new(Logcuting)
 	l.config = config
 	l.setOldLayout()
@@ -35,20 +35,18 @@ func NewLogcuting(config *Config) *Logcuting {
 	var err error
 	l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	l.oldTime = time.Now()
-	return l
+	return l, nil
 }
 
 // 实现io.Writer接口
 func (l *Logcuting) Write(p []byte) (n int, err error) {
-	//如果config.Size大于0，就按日志文件大小切割，否则就按时间切割
-	if l.config.Size > 0 {
-		l.cutingBySize()
-	} else {
-		l.cutingByTime()
+	if err = l.cuting(); err != nil {
+		return
 	}
+
 	return l.file.Write(p)
 }
 
@@ -59,10 +57,27 @@ func (l *Logcuting) UpdateConfig(config *Config) {
 	l.setNewLayout()
 }
 
+// 日志切割
+func (l *Logcuting) cuting() (err error) {
+	//如果config.Size大于0，就按日志文件大小切割，否则就按时间切割
+	if l.config.Size > 0 {
+		err = l.cutingBySize()
+		if err != nil {
+			return
+		}
+	} else {
+		err = l.cutingByTime()
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
 // 根据时间间隔切割日志文件
 // config.Time为0时，每天0点0分切割
 // 有日志输出的时候才会切割
-func (l *Logcuting) cutingByTime() {
+func (l *Logcuting) cutingByTime() (err error) {
 	l.setTime()
 
 	if l.config.Time == 0 { // 一天切割一次
@@ -75,7 +90,10 @@ func (l *Logcuting) cutingByTime() {
 		if time.Now().Unix() >= time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix() {
 			l.file.Close()
 			l.name = l.getName()
-			l.file, _ = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			if err != nil {
+				return err
+			}
 		}
 
 	} else { //按config.Time间隔切割
@@ -86,22 +104,30 @@ func (l *Logcuting) cutingByTime() {
 		if time.Since(l.oldTime) >= l.config.Time {
 			l.file.Close()
 			l.name = l.getName()
-			l.file, _ = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			if err != nil {
+				return err
+			}
 			l.oldTime = time.Now()
 		}
 
 	}
+	return
 }
 
 // 按日志文件大小切割日志
-func (l *Logcuting) cutingBySize() {
+func (l *Logcuting) cutingBySize() (err error) {
 	size := l.getSize()
 	if size >= l.config.Size {
 		l.file.Close()
 		l.name = l.getName()
-		l.file, _ = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
 		l.oldTime = time.Now()
 	}
+	return
 }
 
 // 设置config.Time
