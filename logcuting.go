@@ -15,12 +15,12 @@ type Config struct {
 
 // 日志切割信息
 type Logcuting struct {
-	config    *Config
-	file      *os.File  //文件实例
-	oldTime   time.Time //上次日志切割的时间
-	oldLayout string    //传统时间格式，%Y-%m-%d %H:%M:%S，从配置信息中截取
-	newLayout string    //go语言时间格式，"2006-01-02 15:04:05"，根据oldLayout转换
-	name      string    //日志输出文件字符串，"./log/demo-20240327135202.log"
+	config    *Config   //配置信息，创建Logcuting和调用UpdateConfig时更新
+	file      *os.File  //文件实例，每次切割的时候更新
+	oldTime   time.Time //上次日志切割的时间，每次切割的时候更新
+	oldLayout string    //创建Logcuting和调用UpdateConfig时更新，传统时间格式：%Y-%m-%d %H:%M:%S，从配置信息中截取
+	newLayout string    //创建Logcuting和调用UpdateConfig时更新，go语言时间格式："2006-01-02 15:04:05"，根据oldLayout转换
+	name      string    //日志输出文件字符串，每次切割的时候更新。"./log/demo-20240327135202.log"
 
 }
 
@@ -50,6 +50,13 @@ func (l *Logcuting) Write(p []byte) (n int, err error) {
 		l.cutingByTime()
 	}
 	return l.file.Write(p)
+}
+
+// 更新配置信息
+func (l *Logcuting) UpdateConfig(config *Config) {
+	l.config = config
+	l.setOldLayout()
+	l.setNewLayout()
 }
 
 // 根据时间间隔切割日志文件
