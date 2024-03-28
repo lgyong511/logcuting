@@ -20,7 +20,7 @@
 go get -u github.com/lgyong511/logcuting
 ```
 
-## 使用Logcution
+## 使用Logcuting
 ```go
 package main
 
@@ -48,7 +48,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// 将logcuting作为logrus的输出目标
+	// 将logcut作为logrus的输出目标
 	logrus.SetOutput(logcut)
-	logrus.Info("将日志输出到logcuting")
+	logrus.Info("将日志输出到logcut")
 ```
