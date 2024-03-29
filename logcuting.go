@@ -15,12 +15,12 @@ type Config struct {
 
 // 日志切割信息
 type Logcuting struct {
-	config    *Config   //配置信息，创建Logcuting和调用UpdateConfig时更新
-	file      *os.File  //文件实例，每次切割的时候更新
-	oldTime   time.Time //上次日志切割的时间，每次切割的时候更新
-	oldLayout string    //创建Logcuting和调用UpdateConfig时更新，传统时间格式：%Y-%m-%d %H:%M:%S，从配置信息中截取
-	newLayout string    //创建Logcuting和调用UpdateConfig时更新，go语言时间格式："2006-01-02 15:04:05"，根据oldLayout转换
-	name      string    //日志输出文件字符串，每次切割的时候更新。"./log/demo-20240327135202.log"
+	config    *Config  //配置信息，创建Logcuting和调用UpdateConfig时更新
+	file      *os.File //文件实例，每次切割的时候更新
+	oldTime   int64    //上次日志切割的时间，每次切割的时候更新
+	oldLayout string   //创建Logcuting和调用UpdateConfig时更新，传统时间格式：%Y-%m-%d %H:%M:%S，从配置信息中截取
+	newLayout string   //创建Logcuting和调用UpdateConfig时更新，go语言时间格式："2006-01-02 15:04:05"，根据oldLayout转换
+	name      string   //日志输出文件字符串，每次切割的时候更新。"./log/demo-20240327135202.log"
 
 }
 
@@ -37,7 +37,7 @@ func NewLogcuting(config *Config) (*Logcuting, error) {
 	if err != nil {
 		return nil, err
 	}
-	l.oldTime = time.Now()
+	l.oldTime = time.Now().UnixMicro()
 	return l, nil
 }
 
@@ -48,6 +48,15 @@ func (l *Logcuting) Write(p []byte) (n int, err error) {
 	}
 
 	return l.file.Write(p)
+}
+
+// 实现io.Close接口
+func (l *Logcuting) Close() error {
+	l.config = nil
+	l.oldTime = 0
+	l.oldLayout = ""
+	l.name = ""
+	return l.file.Close()
 }
 
 // 更新配置信息
@@ -101,14 +110,14 @@ func (l *Logcuting) cutingByTime() (err error) {
 		// 重新创建文件并赋值给l.file
 
 		// 判断上次日志切割的时间是否大于等于日志切割时间间隔
-		if time.Since(l.oldTime) >= l.config.Time {
+		if time.Since(time.UnixMicro(l.oldTime)) >= l.config.Time {
 			l.file.Close()
 			l.name = l.getName()
 			l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 			if err != nil {
 				return err
 			}
-			l.oldTime = time.Now()
+			l.oldTime = time.Now().UnixMicro()
 		}
 
 	}
@@ -125,7 +134,7 @@ func (l *Logcuting) cutingBySize() (err error) {
 		if err != nil {
 			return err
 		}
-		l.oldTime = time.Now()
+		l.oldTime = time.Now().UnixMicro()
 	}
 	return
 }
@@ -141,14 +150,14 @@ func (l *Logcuting) setTime() {
 	}
 }
 
-// 设置oldLayout，传统时间格式
+// 设置oldLayout，传统时间格式，从config.Name截取
 func (l *Logcuting) setOldLayout() {
 	i := strings.IndexByte(l.config.Name, '%')
 	li := strings.LastIndexByte(l.config.Name, '%') + 1
 	l.oldLayout = l.config.Name[i : li+1]
 }
 
-// 设置newLayout，go语言的时间格式
+// 设置newLayout，go语言的时间格式，用oldLayout替换
 func (l *Logcuting) setNewLayout() {
 	layout := strings.Replace(l.oldLayout, "%Y", "2006", -1)
 	layout = strings.Replace(layout, "%m", "01", -1)
