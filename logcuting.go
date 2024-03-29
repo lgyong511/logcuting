@@ -168,6 +168,6 @@ func (l *Logcuting) getName() string {
 
 // 获取日志文件的大小
 func (l *Logcuting) getSize() int64 {
-	fileInfo, _ := os.Stat(l.name)
+	fileInfo, _ := l.file.Stat()
 	return fileInfo.Size() / 1024 / 1024
 }
