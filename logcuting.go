@@ -25,20 +25,16 @@ type Logcuting struct {
 }
 
 // 创建Logcuting实例
-func NewLogcuting(config *Config) (*Logcuting, error) {
+func NewLogcuting(config *Config) *Logcuting {
 	l := new(Logcuting)
 	l.config = config
 	l.setOldLayout()
 	l.setNewLayout()
 	l.name = l.getName()
 
-	var err error
-	l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
+	l.file = nil
 	l.oldTime = time.Now().UnixMicro()
-	return l, nil
+	return l
 }
 
 // 实现io.Writer接口
@@ -68,6 +64,11 @@ func (l *Logcuting) UpdateConfig(config *Config) {
 
 // 日志切割
 func (l *Logcuting) cuting() (err error) {
+	if l.file == nil {
+		if err = l.openFile(); err != nil {
+			return err
+		}
+	}
 	//如果config.Size大于0，就按日志文件大小切割，否则就按时间切割
 	if l.config.Size > 0 {
 		err = l.cutingBySize()
@@ -99,7 +100,8 @@ func (l *Logcuting) cutingByTime() (err error) {
 		if time.Now().Unix() >= time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix() {
 			l.file.Close()
 			l.name = l.getName()
-			l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			// l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			err = l.openFile()
 			if err != nil {
 				return err
 			}
@@ -113,7 +115,8 @@ func (l *Logcuting) cutingByTime() (err error) {
 		if time.Since(time.UnixMicro(l.oldTime)) >= l.config.Time {
 			l.file.Close()
 			l.name = l.getName()
-			l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			// l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			err = l.openFile()
 			if err != nil {
 				return err
 			}
@@ -130,12 +133,20 @@ func (l *Logcuting) cutingBySize() (err error) {
 	if size >= l.config.Size {
 		l.file.Close()
 		l.name = l.getName()
-		l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		// l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		err = l.openFile()
 		if err != nil {
 			return err
 		}
 		l.oldTime = time.Now().UnixMicro()
 	}
+	return
+}
+
+// 设置file
+// 根据配置信息打开文件并赋值给file
+func (l *Logcuting) openFile() (err error) {
+	l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	return
 }
 
