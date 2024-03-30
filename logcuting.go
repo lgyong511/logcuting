@@ -106,7 +106,6 @@ func (l *Logcuting) cutingByTime() (err error) {
 				return err
 			}
 		}
-
 	} else { //按config.Time间隔切割
 		// 计算时间是否过去了config.Time间隔
 		// 重新创建文件并赋值给l.file
@@ -122,7 +121,6 @@ func (l *Logcuting) cutingByTime() (err error) {
 			}
 			l.oldTime = time.Now().UnixMicro()
 		}
-
 	}
 	return
 }
@@ -163,9 +161,15 @@ func (l *Logcuting) setTime() {
 
 // 设置oldLayout，传统时间格式，从config.Name截取
 func (l *Logcuting) setOldLayout() {
+	// 只要i和li其中一个的返回值不是-1，i和li都不可能是-1
 	i := strings.IndexByte(l.config.Name, '%')
-	li := strings.LastIndexByte(l.config.Name, '%') + 1
-	l.oldLayout = l.config.Name[i : li+1]
+	li := strings.LastIndexByte(l.config.Name, '%')
+	// i和li返回值是-1，表示config.Name中不包含%Y%m%d%H%M%S样式
+	if i != -1 {
+		l.oldLayout = l.config.Name[i : li+2]
+	} else {
+		l.oldLayout = "%Y%m%d%H%M"
+	}
 }
 
 // 设置newLayout，go语言的时间格式，用oldLayout替换
@@ -177,13 +181,13 @@ func (l *Logcuting) setNewLayout() {
 	layout = strings.Replace(layout, "%M", "04", -1)
 	layout = strings.Replace(layout, "%S", "05", -1)
 	l.newLayout = layout
+
 }
 
 // 获取日志输出文件路径
 func (l *Logcuting) getName() string {
-
-	time := time.Now().Format(l.newLayout)
-	return strings.Replace(l.config.Name, l.oldLayout, time, -1)
+	t := time.Now().Format(l.newLayout)
+	return strings.Replace(l.config.Name, l.oldLayout, t, -1)
 }
 
 // 获取日志文件的大小
