@@ -1,5 +1,5 @@
 # Logcuting
-文件日志切割库，返回一个满足io.Writer接口的实例。  
+文件日志切割库，返回一个满足io.Writer和io.Close接口的实例。  
 
 ## 功能
 - 按时间间隔切割日志文件  
@@ -40,14 +40,12 @@ func main() {
 	logrus.SetReportCaller(true)
 
 	// 创建logcuting实例
-	logcut, err := logcuting.NewLogcuting(&logcuting.Config{
+	logcut := logcuting.NewLogcuting(&logcuting.Config{
 		Name: "./log/demo-%Y%m%d%H%M.log",
 		Time: time.Minute,
 		// Size: 1,
 	})
-	if err != nil {
-		panic(err)
-	}
+	
 	// 将logcut作为logrus的输出目标
 	logrus.SetOutput(logcut)
 	logrus.Info("将日志输出到logcut")
