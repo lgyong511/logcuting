@@ -2,6 +2,7 @@ package logcuting
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -28,8 +29,9 @@ type Logcuting struct {
 func NewLogcuting(config *Config) *Logcuting {
 	l := new(Logcuting)
 	l.config = config
-	l.setOldLayout()
-	l.setNewLayout()
+
+	l.setLayouts()
+
 	l.name = l.getName()
 
 	l.file = nil
@@ -58,13 +60,17 @@ func (l *Logcuting) Close() error {
 // 更新配置信息
 func (l *Logcuting) UpdateConfig(config *Config) {
 	l.config = config
-	l.setOldLayout()
-	l.setNewLayout()
+
+	l.setLayouts()
 }
 
 // 日志切割
 func (l *Logcuting) cuting() (err error) {
+	// 判断是否打开文件和目录是否存在
 	if l.file == nil {
+		if err := os.MkdirAll(filepath.Dir(l.name), 0755); err != nil {
+			return err
+		}
 		if err = l.openFile(); err != nil {
 			return err
 		}
@@ -98,11 +104,8 @@ func (l *Logcuting) cutingByTime() (err error) {
 		t := time.Now().AddDate(0, 0, 1)
 		// 判断现在时间的时间戳是否大于等于加一天后的0时0分0秒的时间戳
 		if time.Now().Unix() >= time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix() {
-			l.file.Close()
-			l.name = l.getName()
-			// l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-			err = l.openFile()
-			if err != nil {
+
+			if err := l.rotateFile(); err != nil {
 				return err
 			}
 		}
@@ -112,11 +115,8 @@ func (l *Logcuting) cutingByTime() (err error) {
 
 		// 判断上次日志切割的时间是否大于等于日志切割时间间隔
 		if time.Since(time.UnixMicro(l.oldTime)) >= l.config.Time {
-			l.file.Close()
-			l.name = l.getName()
-			// l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-			err = l.openFile()
-			if err != nil {
+
+			if err := l.rotateFile(); err != nil {
 				return err
 			}
 			l.oldTime = time.Now().UnixMicro()
@@ -129,16 +129,22 @@ func (l *Logcuting) cutingByTime() (err error) {
 func (l *Logcuting) cutingBySize() (err error) {
 	size := l.getSize()
 	if size >= l.config.Size {
-		l.file.Close()
-		l.name = l.getName()
-		// l.file, err = os.OpenFile(l.name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-		err = l.openFile()
-		if err != nil {
+
+		if err := l.rotateFile(); err != nil {
 			return err
 		}
 		l.oldTime = time.Now().UnixMicro()
 	}
 	return
+}
+
+// rotateFile 执行文件切割和新建操作
+func (l *Logcuting) rotateFile() error {
+	if err := l.file.Close(); err != nil {
+		return err
+	}
+	l.name = l.getName()
+	return l.openFile()
 }
 
 // 设置file
@@ -161,11 +167,11 @@ func (l *Logcuting) setTime() {
 
 // 设置oldLayout，传统时间格式，从config.Name截取
 func (l *Logcuting) setOldLayout() {
-	// 只要i和li其中一个的返回值不是-1，i和li都不可能是-1
 	i := strings.IndexByte(l.config.Name, '%')
 	li := strings.LastIndexByte(l.config.Name, '%')
+
 	// i和li返回值是-1，表示config.Name中不包含%Y%m%d%H%M%S样式
-	if i != -1 {
+	if i != -1 { // 只要i和li其中一个的返回值不是-1，i和li都不可能是-1
 		l.oldLayout = l.config.Name[i : li+2]
 	} else {
 		l.oldLayout = "%Y%m%d%H%M"
@@ -174,20 +180,36 @@ func (l *Logcuting) setOldLayout() {
 
 // 设置newLayout，go语言的时间格式，用oldLayout替换
 func (l *Logcuting) setNewLayout() {
-	layout := strings.Replace(l.oldLayout, "%Y", "2006", -1)
-	layout = strings.Replace(layout, "%m", "01", -1)
-	layout = strings.Replace(layout, "%d", "02", -1)
-	layout = strings.Replace(layout, "%H", "15", -1)
-	layout = strings.Replace(layout, "%M", "04", -1)
-	layout = strings.Replace(layout, "%S", "05", -1)
+
+	replacements := []struct {
+		old, new string
+	}{
+		{"%Y", "2006"},
+		{"%m", "01"},
+		{"%d", "02"},
+		{"%H", "15"},
+		{"%M", "04"},
+		{"%S", "05"},
+	}
+
+	layout := l.oldLayout
+	for _, r := range replacements {
+		layout = strings.ReplaceAll(layout, r.old, r.new)
+	}
 	l.newLayout = layout
 
+}
+
+// setLayouts 设置时间格式
+func (l *Logcuting) setLayouts() {
+	l.setOldLayout()
+	l.setNewLayout()
 }
 
 // 获取日志输出文件路径
 func (l *Logcuting) getName() string {
 	t := time.Now().Format(l.newLayout)
-	return strings.Replace(l.config.Name, l.oldLayout, t, -1)
+	return strings.ReplaceAll(l.config.Name, l.oldLayout, t)
 }
 
 // 获取日志文件的大小
